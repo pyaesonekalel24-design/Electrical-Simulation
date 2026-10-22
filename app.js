@@ -39,9 +39,11 @@ const MAX_VOLTAGE = 12;
 const VOLTAGE_STEP = 0.5;
 
 const ROPE_PARTICLE_COUNT = 25;
-const ROPE_SOLVER_ITERATIONS = 8;
-const ROPE_GRAVITY = 7;
-const ROPE_DAMPING = 0.985;
+const ROPE_SOLVER_ITERATIONS = 16;
+
+// Less sag and more resistance to unwanted movement.
+const ROPE_GRAVITY = 4.2;
+const ROPE_DAMPING = 0.992;
 const ROPE_RADIUS = 0.045;
 const ROPE_GROUND_HEIGHT = 0.075;
 
@@ -460,7 +462,7 @@ makeTerminal(bulb, "bulbB", 0.53, 0.32, 0, "#dce7f5");
 function makeConnector(colorMaterial) {
   const connector = new THREE.Group();
 
-  // Insulated handle.
+  // Insulated plug handle.
   makeMesh(
     new THREE.CylinderGeometry(0.105, 0.09, 0.30, 16),
     colorMaterial,
@@ -468,7 +470,7 @@ function makeConnector(colorMaterial) {
     { x: 0, y: 0, z: 0 }
   );
 
-  // Exposed metal contact tip.
+  // Exposed metal contact.
   makeMesh(
     new THREE.CylinderGeometry(0.055, 0.055, 0.16, 16),
     materials.metal,
@@ -476,13 +478,16 @@ function makeConnector(colorMaterial) {
     { x: 0, y: 0.20, z: 0 }
   );
 
-  // Small strain-relief section where the cable enters the connector.
+  // Cable-entry collar.
   makeMesh(
-    new THREE.CylinderGeometry(0.075, 0.09, 0.10, 16),
+    new THREE.CylinderGeometry(0.075, 0.09, 0.12, 16),
     materials.metal,
     connector,
     { x: 0, y: -0.17, z: 0 }
   );
+
+  // The cable must end inside the collar, not at the plug's center.
+  connector.userData.cableEntry = new THREE.Vector3(0, -0.22, 0);
 
   return connector;
 }
@@ -511,7 +516,7 @@ function makeWire(color, material, startPosition, endPosition, length) {
     const position = startPosition.clone().lerp(endPosition, t);
 
     // Start with a little slack instead of a perfectly straight cable.
-    position.y -= Math.sin(t * Math.PI) * 0.24;
+position.y -= Math.sin(t * Math.PI) * 0.13;
 
     points.push({
       position,
@@ -612,19 +617,20 @@ function getTerminalPosition(terminalId) {
 function getEndPosition(wire, endIndex) {
   const end = wire.ends[endIndex];
 
+  // When connected, the cable follows the connector's attached terminal.
   if (end.terminalId) {
-    return getTerminalPosition(end.terminalId);
+    const terminalPosition = getTerminalPosition(end.terminalId);
+    const entry = end.connector.userData.cableEntry || new THREE.Vector3();
+
+    // The connector itself stays centered on the terminal.
+    // The rope ends at the cable-entry collar.
+    return terminalPosition.add(entry);
   }
 
-  return end.connector.position.clone();
+  const entry = end.connector.userData.cableEntry || new THREE.Vector3();
+
+  return end.connector.position.clone().add(entry);
 }
-
-function setEndPosition(wire, endIndex, position) {
-  const end = wire.ends[endIndex];
-
-  if (end.terminalId) {
-    return;
-  }
 
   end.connector.position.copy(position);
 }
@@ -761,6 +767,7 @@ function updateCircuit() {
   updateReadings();
   updateBulbAppearance();
   updateStatus();
+   updateElectronOverlay(0);
 }
 
 function updateStatus() {
@@ -808,6 +815,8 @@ function updateStatus() {
       "Connect both ends of each wire to the correct terminals.";
   }
 }
+
+updateInstrumentReadings();
 
 /* =========================================================
    PHYSICS CALCULATIONS
@@ -976,7 +985,10 @@ function findComponentGroup(object) {
   let current = object;
 
   while (current && current !== scene) {
-    if (current.userData.dragType === "component") {
+    if (
+      current.userData.dragType === "component" ||
+      current.userData.dragType === "instrument"
+    ) {
       return current;
     }
 
@@ -1496,7 +1508,7 @@ function resetLayout() {
       const t = i / (wire.particles.length - 1);
       const point = first.clone().lerp(last, t);
 
-      point.y -= Math.sin(t * Math.PI) * 0.24;
+      point.y -= Math.sin(t * Math.PI) * 0.13;
 
       wire.particles[i].position.copy(point);
       wire.particles[i].previous.copy(point);
@@ -1553,6 +1565,365 @@ function animate(timestamp) {
   updateBulbDamage(deltaTime);
 
   renderer.render(scene, camera);
+
+   updateElectronOverlay(deltaTime);
+}
+
+/* =========================================================
+   TOOLBOX PANEL — LEVEL 1
+   ========================================================= */
+
+const toolboxStyle = document.createElement("style");
+
+toolboxStyle.textContent = `
+  #electrician-toolbox {
+    position: fixed;
+    z-index: 50;
+    top: 76px;
+    left: 18px;
+    width: min(290px, calc(100vw - 36px));
+    padding: 16px;
+    border: 1px solid #30435d;
+    border-radius: 14px;
+    background: rgba(10, 19, 33, 0.97);
+    color: #edf3ff;
+    font-family: Inter, system-ui, sans-serif;
+    box-shadow: 0 18px 60px #0008;
+    display: none;
+  }
+
+  #electrician-toolbox.open {
+    display: block;
+  }
+
+  #electrician-toolbox h3 {
+    margin: 0 0 5px;
+    font-size: 17px;
+  }
+
+  #electrician-toolbox p {
+    color: #9aacc4;
+    font-size: 12px;
+    line-height: 1.6;
+    margin: 0 0 13px;
+  }
+
+  #electrician-toolbox button,
+  #toolbox-toggle {
+    border: 1px solid #344c69;
+    border-radius: 8px;
+    background: #14243a;
+    color: #eaf4ff;
+    cursor: pointer;
+    padding: 10px 12px;
+    font: inherit;
+  }
+
+  #electrician-toolbox button {
+    width: 100%;
+    text-align: left;
+    margin-top: 7px;
+  }
+
+  #electrician-toolbox button:hover,
+  #toolbox-toggle:hover {
+    background: #1b3552;
+  }
+
+  #toolbox-toggle {
+    position: fixed;
+    z-index: 51;
+    top: 18px;
+    left: 18px;
+    font-weight: 700;
+  }
+
+  #electrician-toolbox .tool-note {
+    margin-top: 12px;
+    font-size: 11px;
+    color: #7890ad;
+  }
+`;
+
+document.head.appendChild(toolboxStyle);
+
+const toolboxToggle = document.createElement("button");
+toolboxToggle.id = "toolbox-toggle";
+toolboxToggle.textContent = "▦ Toolbox";
+document.body.appendChild(toolboxToggle);
+
+const toolbox = document.createElement("section");
+toolbox.id = "electrician-toolbox";
+
+toolbox.innerHTML = `
+  <h3>Electrician's toolbox</h3>
+  <p>Choose a tool to place it on the workbench.</p>
+
+  <button data-tool="ammeter">◉ Ammeter — A</button>
+  <button data-tool="multimeter">▣ Digital multimeter</button>
+  <button data-tool="voltmeter">◉ Voltmeter — V</button>
+  <button data-tool="continuity">⌁ Continuity tester</button>
+  <button data-tool="clamp">⊂ Clamp meter</button>
+
+  <div class="tool-note">
+    Instruments are introduced progressively. Their readings
+    must come from the circuit model, not decorative text.
+  </div>
+`;
+
+document.body.appendChild(toolbox);
+
+toolboxToggle.addEventListener("click", () => {
+  toolbox.classList.toggle("open");
+});
+
+toolbox.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-tool]");
+
+  if (!button) {
+    return;
+  }
+
+  spawnInstrument(button.dataset.tool);
+  toolbox.classList.remove("open");
+});
+
+/* =========================================================
+   PHYSICAL INSTRUMENT MODELS
+   ========================================================= */
+
+const spawnedInstruments = [];
+
+function makeInstrumentLabel(text) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 128;
+
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#dfe8f2";
+  ctx.font = "bold 44px Arial";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, 128, 64);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+
+  return new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+  });
+}
+
+function spawnInstrument(type) {
+  const group = new THREE.Group();
+
+  group.position.set(
+    (Math.random() - 0.5) * 2,
+    0.15,
+    (Math.random() - 0.5) * 1.5
+  );
+
+  group.userData.dragType = "instrument";
+  group.userData.instrumentType = type;
+
+  const bodyMaterial = new THREE.MeshStandardMaterial({
+    color: type === "multimeter" || type === "clamp"
+      ? "#e2a52e"
+      : "#26364b",
+    roughness: 0.48,
+    metalness: 0.2,
+  });
+
+  makeMesh(
+    new THREE.BoxGeometry(0.75, 0.22, 0.95),
+    bodyMaterial,
+    group,
+    { x: 0, y: 0, z: 0 }
+  );
+
+  const face = makeMesh(
+    new THREE.BoxGeometry(0.57, 0.025, 0.43),
+    new THREE.MeshStandardMaterial({
+      color: "#101722",
+      roughness: 0.3,
+      metalness: 0.1,
+    }),
+    group,
+    { x: 0, y: 0.125, z: 0 }
+  );
+
+  const labelText = {
+    ammeter: "A",
+    multimeter: "MULTI",
+    voltmeter: "V",
+    continuity: "Ω",
+    clamp: "A",
+  }[type] || "?";
+
+  const label = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.47, 0.22),
+    makeInstrumentLabel(labelText)
+  );
+
+  label.position.set(0, 0.143, 0);
+  label.rotation.x = -Math.PI / 2;
+  group.add(label);
+
+  // A display that is updated from the actual circuit calculation.
+  const readout = makeMesh(
+    new THREE.BoxGeometry(0.40, 0.025, 0.13),
+    new THREE.MeshStandardMaterial({
+      color: "#86efac",
+      emissive: "#1e9b55",
+      emissiveIntensity: 0.25,
+    }),
+    group,
+    { x: 0, y: 0.15, z: -0.14 }
+  );
+
+  group.userData.readout = readout;
+
+  // Keep the instrument movable.
+  scene.add(group);
+  interactiveObjects.push(group);
+  spawnedInstruments.push(group);
+
+  updateInstrumentReadings();
+
+  return group;
+}
+
+function updateInstrumentReadings() {
+  const { current, power } = calculateCircuit();
+
+  for (const instrument of spawnedInstruments) {
+    const type = instrument.userData.instrumentType;
+    const readout = instrument.userData.readout;
+
+    // The display brightness indicates whether the instrument has a
+    // meaningful reading. A proper physical readout is the next step.
+    const hasReading = circuitComplete && !bulbFailed;
+
+    readout.material.emissiveIntensity = hasReading ? 1.2 : 0.05;
+
+    instrument.userData.measurement = {
+      current,
+      voltage: hasReading ? voltage : 0,
+      resistance: hasReading ? BULB_RESISTANCE : Infinity,
+      power,
+      connected: hasReading,
+      mode: type,
+    };
+  }
+}
+
+/* =========================================================
+   OPTIONAL ELECTRON-DRIFT VISUALIZATION
+   ========================================================= */
+
+const overlayStyle = document.createElement("style");
+
+overlayStyle.textContent = `
+  #electricity-overlay-toggle {
+    position: fixed;
+    right: 18px;
+    top: 18px;
+    z-index: 51;
+    border: 1px solid #344c69;
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: #eaf4ff;
+    background: #14243a;
+    cursor: pointer;
+    font: inherit;
+  }
+`;
+
+document.head.appendChild(overlayStyle);
+
+const overlayToggle = document.createElement("button");
+overlayToggle.id = "electricity-overlay-toggle";
+overlayToggle.textContent = "◎ Electron overlay: OFF";
+document.body.appendChild(overlayToggle);
+
+let electronOverlayEnabled = false;
+const electronParticles = [];
+
+const electronMaterial = new THREE.MeshBasicMaterial({
+  color: "#55cfff",
+  transparent: true,
+  opacity: 0.9,
+});
+
+const electronGeometry = new THREE.SphereGeometry(0.035, 8, 8);
+
+for (let i = 0; i < 36; i++) {
+  const particle = new THREE.Mesh(
+    electronGeometry,
+    electronMaterial
+  );
+
+  particle.visible = false;
+  particle.userData.progress = i / 36;
+
+  scene.add(particle);
+  electronParticles.push(particle);
+}
+
+overlayToggle.addEventListener("click", () => {
+  electronOverlayEnabled = !electronOverlayEnabled;
+
+  overlayToggle.textContent = electronOverlayEnabled
+    ? "◎ Electron overlay: ON"
+    : "◎ Electron overlay: OFF";
+
+  for (const particle of electronParticles) {
+    particle.visible = electronOverlayEnabled && circuitComplete && !bulbFailed;
+  }
+});
+
+function updateElectronOverlay(deltaTime) {
+  const active = electronOverlayEnabled && circuitComplete && !bulbFailed;
+
+  for (const particle of electronParticles) {
+    particle.visible = active;
+  }
+
+  if (!active) {
+    return;
+  }
+
+  /*
+    Electron drift is opposite to conventional current:
+    battery negative -> bulb -> battery positive through the
+    external metallic path.
+
+    This first visualization follows a simplified route around
+    the connected loop; it is not a microscopic field solver.
+  */
+
+  const route = [
+    getTerminalPosition("batteryMinus"),
+    getTerminalPosition("bulbB"),
+    getTerminalPosition("bulbA"),
+    getTerminalPosition("batteryPlus"),
+  ];
+
+  for (const particle of electronParticles) {
+    particle.userData.progress =
+      (particle.userData.progress + deltaTime * 0.09) % 1;
+
+    const scaled = particle.userData.progress * (route.length - 1);
+    const segment = Math.min(Math.floor(scaled), route.length - 2);
+    const localT = scaled - segment;
+
+    particle.position.copy(
+      route[segment].clone().lerp(route[segment + 1], localT)
+    );
+
+    particle.position.y += 0.13;
+  }
 }
 
 /* =========================================================
