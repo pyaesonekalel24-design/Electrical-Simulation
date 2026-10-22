@@ -28,7 +28,7 @@ let filamentDamage = 0;
 let lastFrameTime = 0;
 let showElectronFlow = false;
 let toolboxOpen = false;
-
+const tools = []; // stores all spawned tools
 const $ = (id) => document.getElementById(id);
 
 /* =========================================================
@@ -40,6 +40,8 @@ const screens = {
   sandbox: $("sandbox-screen"),
   game: $("game-screen"),
 };
+
+createToolboxUI();
 
 function showScreen(name) {
   for (const [key, el] of Object.entries(screens)) {
@@ -285,36 +287,51 @@ const wires = [redWire, blackWire];
 interactiveObjects.push(battery, bulb);
 
 /* =========================================================
-   TOOLBOX SYSTEM
+   TOOLBOX + ELECTRON TOGGLE
    ========================================================= */
-const tools = []; // all spawned tools
-
 function createToolboxUI() {
-  // Toolbox button
+  // --- Toolbox Button ---
   if (!$("toolbox-button")) {
     const btn = document.createElement("button");
     btn.id = "toolbox-button";
     btn.textContent = "Toolbox";
     btn.style.cssText = `
-      position:fixed; bottom:22px; left:22px; z-index:300;
-      padding:12px 18px; border-radius:10px; border:1px solid #3a5a7c;
-      background:#1a2f4a; color:#e8f4ff; font-size:14px; font-weight:600;
-      cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.3);
+      position: fixed;
+      bottom: 22px;
+      left: 22px;
+      z-index: 300;
+      padding: 12px 18px;
+      border-radius: 10px;
+      border: 1px solid #3a5a7c;
+      background: #1a2f4a;
+      color: #e8f4ff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     `;
     btn.onclick = toggleToolbox;
     document.body.appendChild(btn);
   }
 
-  // Toolbox panel
+  // --- Toolbox Panel ---
   if (!$("toolbox-panel")) {
     const panel = document.createElement("div");
     panel.id = "toolbox-panel";
     panel.style.cssText = `
-      position:fixed; bottom:80px; left:22px; z-index:300;
-      width:280px; background:#0f1c2e; border:1px solid #2a4060;
-      border-radius:14px; padding:16px; display:none;
-      box-shadow:0 10px 30px rgba(0,0,0,0.45); color:#e0f0ff;
-      font-family:system-ui,sans-serif;
+      position: fixed;
+      bottom: 80px;
+      left: 22px;
+      z-index: 300;
+      width: 280px;
+      background: #0f1c2e;
+      border: 1px solid #2a4060;
+      border-radius: 14px;
+      padding: 16px;
+      display: none;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+      color: #e0f0ff;
+      font-family: system-ui, sans-serif;
     `;
     panel.innerHTML = `
       <div style="font-size:13px;font-weight:700;letter-spacing:1px;color:#64e4ff;margin-bottom:14px;">
@@ -325,38 +342,56 @@ function createToolboxUI() {
     document.body.appendChild(panel);
 
     const toolsData = [
-      { id: "multimeter", name: "Multimeter", desc: "Red & black probes" },
-      { id: "ammeter", name: "Inline Ammeter", desc: "Insert into circuit" },
-      { id: "clamp", name: "Clamp Meter", desc: "Measure without breaking" },
-      { id: "notepad", name: "Note Pad", desc: "Write formulas" },
+      { id: "multimeter", name: "Multimeter", desc: "Red & black probes • measure V / I / R" },
+      { id: "ammeter",    name: "Inline Ammeter", desc: "Insert into the circuit to measure current" },
+      { id: "clamp",      name: "Clamp Meter", desc: "Measure current without breaking the circuit" },
+      { id: "notepad",    name: "Note Pad", desc: "Write formulas and observations" },
     ];
 
     const list = panel.querySelector("#tool-list");
     toolsData.forEach(t => {
       const item = document.createElement("button");
       item.style.cssText = `
-        display:flex;flex-direction:column;align-items:flex-start;
-        padding:12px 14px; background:#162536; border:1px solid #2a4060;
-        border-radius:10px; color:#e0f0ff; cursor:pointer; text-align:left;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 12px 14px;
+        background: #162536;
+        border: 1px solid #2a4060;
+        border-radius: 10px;
+        color: #e0f0ff;
+        cursor: pointer;
+        text-align: left;
+        transition: background 0.15s;
       `;
       item.innerHTML = `
         <span style="font-weight:600;font-size:14px;">${t.name}</span>
         <span style="font-size:12px;color:#8aa4c0;margin-top:3px;">${t.desc}</span>
       `;
+      item.onmouseenter = () => item.style.background = "#1e334d";
+      item.onmouseleave = () => item.style.background = "#162536";
       item.onclick = () => spawnTool(t.id);
       list.appendChild(item);
     });
   }
 
-  // Electron toggle
+  // --- Electron Flow Toggle ---
   if (!$("electron-toggle")) {
     const btn = document.createElement("button");
     btn.id = "electron-toggle";
     btn.textContent = "Electron Flow: OFF";
     btn.style.cssText = `
-      position:fixed; bottom:22px; left:140px; z-index:300;
-      padding:12px 16px; border-radius:10px; border:1px solid #2a3f5c;
-      background:#122033; color:#e0f0ff; font-size:13px; cursor:pointer;
+      position: fixed;
+      bottom: 22px;
+      left: 140px;
+      z-index: 300;
+      padding: 12px 16px;
+      border-radius: 10px;
+      border: 1px solid #2a3f5c;
+      background: #122033;
+      color: #e0f0ff;
+      font-size: 13px;
+      cursor: pointer;
     `;
     btn.onclick = () => {
       showElectronFlow = !showElectronFlow;
@@ -374,47 +409,54 @@ function toggleToolbox() {
 }
 
 function spawnTool(type) {
-  let tool;
+  let tool = null;
+
   if (type === "multimeter") tool = createMultimeter();
   else if (type === "ammeter") tool = createInlineAmmeter();
   else if (type === "clamp") tool = createClampMeter();
   else if (type === "notepad") tool = createNotePad();
 
   if (tool) {
+    // Spawn near the center of the table
     tool.position.set(
-      (Math.random() - 0.5) * 3,
-      0.2,
-      (Math.random() - 0.5) * 2 - 1.5
+      (Math.random() - 0.5) * 2.5,
+      0.15,
+      -1.8 + (Math.random() - 0.5) * 1.2
     );
     scene.add(tool);
     interactiveObjects.push(tool);
     tools.push(tool);
   }
-  toggleToolbox(); // close after spawning
+
+  // Close toolbox after spawning
+  toggleToolbox();
 }
 
-/* ---------- Tool creators ---------- */
+/* ---------- Tool 3D models ---------- */
 function createMultimeter() {
   const group = new THREE.Group();
   group.userData.dragType = "tool";
   group.userData.toolType = "multimeter";
 
-  // Body
-  makeMesh(new THREE.BoxGeometry(0.7, 0.15, 1.1), materials.toolBody, group, { x: 0, y: 0.08, z: 0 });
+  // Main body
+  makeMesh(new THREE.BoxGeometry(0.72, 0.16, 1.15), materials.toolBody || new THREE.MeshStandardMaterial({ color: "#1e2d42" }), group, { x: 0, y: 0.08, z: 0 });
+  
   // Screen
-  makeMesh(new THREE.BoxGeometry(0.5, 0.02, 0.35), materials.screen, group, { x: 0, y: 0.17, z: -0.25 });
-  // Dial
-  makeMesh(new THREE.CylinderGeometry(0.12, 0.12, 0.04, 24), materials.toolAccent, group, { x: 0, y: 0.18, z: 0.25 }).rotation.x = Math.PI / 2;
+  makeMesh(new THREE.BoxGeometry(0.52, 0.025, 0.38), materials.screen || new THREE.MeshStandardMaterial({ color: "#0a1628", emissive: "#1a3a5c", emissiveIntensity: 0.4 }), group, { x: 0, y: 0.17, z: -0.28 });
+  
+  // Rotary dial
+  makeMesh(new THREE.CylinderGeometry(0.13, 0.13, 0.05, 24), materials.toolAccent || new THREE.MeshStandardMaterial({ color: "#3d5a80" }), group, { x: 0, y: 0.19, z: 0.28 }).rotation.x = Math.PI / 2;
 
-  // Probes (simple sticks for now)
+  // Red probe
   const redProbe = new THREE.Group();
-  makeMesh(new THREE.CylinderGeometry(0.025, 0.02, 0.6, 10), materials.red, redProbe, { x: 0, y: 0.3, z: 0 });
-  redProbe.position.set(0.25, 0.1, 0.7);
+  makeMesh(new THREE.CylinderGeometry(0.028, 0.022, 0.65, 10), materials.red, redProbe, { x: 0, y: 0.32, z: 0 });
+  redProbe.position.set(0.28, 0.1, 0.75);
   group.add(redProbe);
 
+  // Black probe
   const blackProbe = new THREE.Group();
-  makeMesh(new THREE.CylinderGeometry(0.025, 0.02, 0.6, 10), materials.black, blackProbe, { x: 0, y: 0.3, z: 0 });
-  blackProbe.position.set(-0.25, 0.1, 0.7);
+  makeMesh(new THREE.CylinderGeometry(0.028, 0.022, 0.65, 10), materials.black, blackProbe, { x: 0, y: 0.32, z: 0 });
+  blackProbe.position.set(-0.28, 0.1, 0.75);
   group.add(blackProbe);
 
   return group;
@@ -425,11 +467,12 @@ function createInlineAmmeter() {
   group.userData.dragType = "tool";
   group.userData.toolType = "ammeter";
 
-  makeMesh(new THREE.BoxGeometry(0.55, 0.2, 0.55), materials.toolBody, group, { x: 0, y: 0.1, z: 0 });
-  makeMesh(new THREE.BoxGeometry(0.35, 0.03, 0.25), materials.screen, group, { x: 0, y: 0.22, z: 0 });
-  // Connection points
-  makeMesh(new THREE.CylinderGeometry(0.04, 0.04, 0.08, 12), materials.metal, group, { x: 0.32, y: 0.1, z: 0 });
-  makeMesh(new THREE.CylinderGeometry(0.04, 0.04, 0.08, 12), materials.metal, group, { x: -0.32, y: 0.1, z: 0 });
+  makeMesh(new THREE.BoxGeometry(0.58, 0.22, 0.58), materials.toolBody || new THREE.MeshStandardMaterial({ color: "#1e2d42" }), group, { x: 0, y: 0.11, z: 0 });
+  makeMesh(new THREE.BoxGeometry(0.38, 0.03, 0.28), materials.screen || new THREE.MeshStandardMaterial({ color: "#0a1628", emissive: "#1a3a5c", emissiveIntensity: 0.4 }), group, { x: 0, y: 0.23, z: 0 });
+  
+  // Connection terminals
+  makeMesh(new THREE.CylinderGeometry(0.045, 0.045, 0.09, 12), materials.metal, group, { x: 0.34, y: 0.11, z: 0 });
+  makeMesh(new THREE.CylinderGeometry(0.045, 0.045, 0.09, 12), materials.metal, group, { x: -0.34, y: 0.11, z: 0 });
 
   return group;
 }
@@ -439,10 +482,13 @@ function createClampMeter() {
   group.userData.dragType = "tool";
   group.userData.toolType = "clamp";
 
-  makeMesh(new THREE.BoxGeometry(0.45, 0.18, 0.9), materials.toolBody, group, { x: 0, y: 0.09, z: 0 });
-  // Clamp jaw (simplified)
-  makeMesh(new THREE.TorusGeometry(0.22, 0.04, 8, 20, Math.PI), materials.toolAccent, group, { x: 0, y: 0.35, z: -0.35 }).rotation.x = Math.PI / 2;
-  makeMesh(new THREE.BoxGeometry(0.3, 0.02, 0.2), materials.screen, group, { x: 0, y: 0.2, z: 0.15 });
+  makeMesh(new THREE.BoxGeometry(0.48, 0.19, 0.95), materials.toolBody || new THREE.MeshStandardMaterial({ color: "#1e2d42" }), group, { x: 0, y: 0.095, z: 0 });
+  
+  // Clamp jaw
+  const jaw = makeMesh(new THREE.TorusGeometry(0.23, 0.045, 8, 20, Math.PI), materials.toolAccent || new THREE.MeshStandardMaterial({ color: "#3d5a80" }), group, { x: 0, y: 0.38, z: -0.38 });
+  jaw.rotation.x = Math.PI / 2;
+  
+  makeMesh(new THREE.BoxGeometry(0.32, 0.025, 0.22), materials.screen || new THREE.MeshStandardMaterial({ color: "#0a1628", emissive: "#1a3a5c", emissiveIntensity: 0.4 }), group, { x: 0, y: 0.21, z: 0.18 });
 
   return group;
 }
@@ -452,10 +498,16 @@ function createNotePad() {
   group.userData.dragType = "tool";
   group.userData.toolType = "notepad";
 
-  makeMesh(new THREE.BoxGeometry(0.9, 0.03, 1.2), new THREE.MeshStandardMaterial({ color: "#f0e6d0", roughness: 0.8 }), group, { x: 0, y: 0.02, z: 0 });
-  // Lines
-  for (let i = 0; i < 8; i++) {
-    makeMesh(new THREE.BoxGeometry(0.75, 0.005, 0.01), new THREE.MeshBasicMaterial({ color: "#a0b0c0" }), group, { x: 0, y: 0.04, z: -0.4 + i * 0.12 });
+  makeMesh(new THREE.BoxGeometry(0.95, 0.035, 1.25), new THREE.MeshStandardMaterial({ color: "#f0e6d0", roughness: 0.85 }), group, { x: 0, y: 0.02, z: 0 });
+  
+  // Paper lines
+  for (let i = 0; i < 9; i++) {
+    makeMesh(
+      new THREE.BoxGeometry(0.8, 0.004, 0.012),
+      new THREE.MeshBasicMaterial({ color: "#9eb0c4" }),
+      group,
+      { x: 0, y: 0.04, z: -0.45 + i * 0.11 }
+    );
   }
 
   return group;
