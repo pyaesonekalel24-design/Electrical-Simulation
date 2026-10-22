@@ -1,0 +1,266 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#080d18" />
+  <meta
+    name="description"
+    content="Explore electricity through an interactive 3D circuit lab."
+  />
+  <title>Electricity Lab</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <main id="app">
+
+    <!-- HOME SCREEN -->
+    <section id="home-screen" class="screen home-screen">
+      <div class="brand">
+        <span class="brand-icon">ϟ</span>
+        <span>ELECTRICITY LAB</span>
+      </div>
+
+      <div class="hero">
+        <div class="eyebrow">INTERACTIVE PHYSICS</div>
+        <h1>Understand<br />how electricity <span>works.</span></h1>
+        <p>
+          Build circuits, experiment with voltage, and discover
+          the physics behind the things that power your world.
+        </p>
+
+        <div class="home-actions">
+          <button id="learn-button" class="button button-primary">
+            Start learning <span>→</span>
+          </button>
+          <button id="sandbox-button" class="button button-secondary">
+            Sandbox
+          </button>
+        </div>
+      </div>
+
+      <div class="home-footer">
+        <span>LEARN BY EXPERIMENTING</span>
+        <span>VOLTAGE · CURRENT · POWER</span>
+      </div>
+    </section>
+
+    <!-- LEVEL SELECTION -->
+    <section id="levels-screen" class="screen hidden">
+      <header class="page-header">
+        <button class="icon-button" id="levels-back-button" aria-label="Back">
+          ←
+        </button>
+        <div>
+          <div class="eyebrow">LEARNING PATH</div>
+          <h2>Choose a level</h2>
+        </div>
+      </header>
+
+      <p class="page-description">
+        Learn the fundamentals first. More experiments will unlock as the lab grows.
+      </p>
+
+      <div class="level-list">
+        <button id="level-one-button" class="level-card level-available">
+          <div class="level-number">01</div>
+          <div class="level-info">
+            <span class="level-status">AVAILABLE NOW</span>
+            <h3>Your first circuit</h3>
+            <p>Connect a battery and a bulb. Explore voltage, current, and power.</p>
+          </div>
+          <span class="level-arrow">↗</span>
+        </button>
+
+        <div class="level-card level-locked">
+          <div class="level-number">02</div>
+          <div class="level-info">
+            <span class="level-status">COMING SOON</span>
+            <h3>Resistance & Ohm's law</h3>
+            <p>Discover how resistance changes the current in a circuit.</p>
+          </div>
+          <span class="lock-icon">🔒</span>
+        </div>
+
+        <div class="level-card level-locked">
+          <div class="level-number">03</div>
+          <div class="level-info">
+            <span class="level-status">COMING SOON</span>
+            <h3>Series & parallel</h3>
+            <p>Build different paths for current and compare the results.</p>
+          </div>
+          <span class="lock-icon">🔒</span>
+        </div>
+      </div>
+
+      <div class="small-note">YOUR PROGRESS STARTS WITH ONE CONNECTION.</div>
+    </section>
+
+    <!-- SANDBOX PLACEHOLDER -->
+    <section id="sandbox-screen" class="screen hidden">
+      <button class="button button-secondary back-home-button">← Home</button>
+
+      <div class="placeholder-content">
+        <div class="placeholder-symbol">⌘</div>
+        <div class="eyebrow">OPEN EXPERIMENTATION</div>
+        <h2>The sandbox is<br /><span>under construction.</span></h2>
+        <p>
+          Soon you'll be able to place components freely and build
+          your own circuits.
+        </p>
+      </div>
+    </section>
+
+    <!-- LEVEL 1 GAME -->
+    <section id="game-screen" class="screen game-screen hidden">
+      <header class="game-header">
+        <button id="game-back-button" class="icon-button" aria-label="Back to levels">
+          ←
+        </button>
+
+        <div class="game-title">
+          <div class="eyebrow">LEVEL 01</div>
+          <h2>Your first circuit</h2>
+        </div>
+
+        <div id="circuit-status" class="status-pill">
+          <span class="status-dot"></span>
+          Circuit incomplete
+        </div>
+      </header>
+
+      <div class="game-layout">
+        <section class="workbench-panel">
+          <div class="workbench-topbar">
+            <div>
+              <span class="panel-kicker">3D WORKBENCH</span>
+              <span class="workbench-subtitle">Drag components and wire ends</span>
+            </div>
+            <button id="reset-button" class="small-button">Reset layout</button>
+          </div>
+
+          <div id="scene-container">
+            <canvas id="scene-canvas" aria-label="Interactive 3D circuit workbench"></canvas>
+
+            <div class="scene-legend">
+              <span><i class="legend-dot red"></i> Positive / red wire</span>
+              <span><i class="legend-dot black"></i> Negative / black wire</span>
+            </div>
+
+            <div class="scene-hint" id="scene-hint">
+              Drag the loose red wire end to the bulb's left terminal.
+            </div>
+          </div>
+
+          <div class="workbench-footer">
+            <span><span class="keyboard-dot"></span> Drag objects to move them</span>
+            <span>VIEW: BIRD'S-EYE 3D</span>
+          </div>
+        </section>
+
+        <aside class="control-panel">
+          <section class="control-card">
+            <div class="card-heading">
+              <div>
+                <span class="panel-kicker">POWER SOURCE</span>
+                <h3>Battery</h3>
+              </div>
+              <span class="battery-icon">ϟ</span>
+            </div>
+
+            <div class="voltage-display">
+              <span id="voltage-value">3.0</span>
+              <span class="unit">V</span>
+            </div>
+            <div class="voltage-caption">BATTERY VOLTAGE</div>
+
+            <div class="voltage-controls">
+              <button id="voltage-down" class="voltage-button" aria-label="Decrease voltage">−</button>
+              <div class="voltage-track">
+                <div id="voltage-track-fill"></div>
+              </div>
+              <button id="voltage-up" class="voltage-button" aria-label="Increase voltage">+</button>
+            </div>
+            <div class="voltage-limits">
+              <span>0.5 V</span>
+              <span>12.0 V</span>
+            </div>
+            <p class="card-note">Adjust the voltage and observe what changes.</p>
+          </section>
+
+          <section class="control-card readings-card">
+            <div class="card-heading">
+              <div>
+                <span class="panel-kicker">LIVE MEASUREMENTS</span>
+                <h3>Circuit readings</h3>
+              </div>
+              <span class="live-indicator">LIVE</span>
+            </div>
+
+            <div class="reading-row">
+              <div>
+                <span class="reading-name">Current</span>
+                <span class="reading-formula">I = V / R</span>
+              </div>
+              <div class="reading-value">
+                <span id="current-value">0.000</span>
+                <span class="unit">A</span>
+              </div>
+            </div>
+
+            <div class="reading-row">
+              <div>
+                <span class="reading-name">Power</span>
+                <span class="reading-formula">P = V × I</span>
+              </div>
+              <div class="reading-value">
+                <span id="power-value">0.000</span>
+                <span class="unit">W</span>
+              </div>
+            </div>
+
+            <div class="reading-row">
+              <div>
+                <span class="reading-name">Bulb resistance</span>
+                <span class="reading-formula">Fixed model value</span>
+              </div>
+              <div class="reading-value">
+                <span id="resistance-value">6.0</span>
+                <span class="unit">Ω</span>
+              </div>
+            </div>
+
+            <div id="measurement-note" class="measurement-note">
+              Complete the circuit to calculate the readings.
+            </div>
+          </section>
+
+          <section class="control-card lesson-card">
+            <span class="panel-kicker">LEARN THE CONCEPT</span>
+            <h3>Voltage makes a difference</h3>
+            <p>
+              Voltage is the electrical potential difference between two points.
+              In this simple circuit, increasing voltage increases current
+              because the bulb's resistance stays fixed.
+            </p>
+            <div class="formula-strip">
+              <span>V = I × R</span>
+              <span>P = V × I</span>
+            </div>
+          </section>
+        </aside>
+      </div>
+
+      <footer class="game-footer">
+        <span>ELECTRICITY LAB <span class="footer-divider">/</span> LEVEL 01</span>
+        <span>SIMPLIFIED DC CIRCUIT MODEL</span>
+      </footer>
+    </section>
+
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
