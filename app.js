@@ -39,11 +39,9 @@ const MAX_VOLTAGE = 12;
 const VOLTAGE_STEP = 0.5;
 
 const ROPE_PARTICLE_COUNT = 25;
-const ROPE_SOLVER_ITERATIONS = 16;
-
-// Less sag and more resistance to unwanted movement.
-const ROPE_GRAVITY = 4.2;
-const ROPE_DAMPING = 0.992;
+const ROPE_SOLVER_ITERATIONS = 12;
+const ROPE_GRAVITY = 3.8;
+const ROPE_DAMPING = 0.99;
 const ROPE_RADIUS = 0.045;
 const ROPE_GROUND_HEIGHT = 0.075;
 
@@ -617,27 +615,22 @@ function getTerminalPosition(terminalId) {
 function getEndPosition(wire, endIndex) {
   const end = wire.ends[endIndex];
 
-  // When connected, the cable follows the connector's attached terminal.
-  if (end.terminalId) {
-    const terminalPosition = getTerminalPosition(end.terminalId);
-    const entry = end.connector.userData.cableEntry || new THREE.Vector3();
+  // The cable endpoint is the connector's cable-entry point.
+  const entry =
+    end.connector.userData.cableEntry ||
+    new THREE.Vector3(0, -0.22, 0);
 
-    // The connector itself stays centered on the terminal.
-    // The rope ends at the cable-entry collar.
+  if (end.terminalId) {
+    // Keep the connector centered on its attached terminal.
+    const terminalPosition = getTerminalPosition(end.terminalId);
+
+    end.connector.position.copy(terminalPosition);
+
     return terminalPosition.add(entry);
   }
 
-  const entry = end.connector.userData.cableEntry || new THREE.Vector3();
-
+  // When disconnected, the cable follows the connector itself.
   return end.connector.position.clone().add(entry);
-}
-
-  end.connector.position.copy(position);
-}
-
-function updateTerminalPositions() {
-  battery.updateMatrixWorld(true);
-  bulb.updateMatrixWorld(true);
 }
 
 /* =========================================================
@@ -1202,15 +1195,21 @@ const inspectButton = document.createElement("button");
 
 inspectButton.className = "small-button";
 inspectButton.textContent = "Inspect 3D bulb ↗";
-inspectButton.style.marginTop = "14px";
+inspectButton.style.cssText = `
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 50;
+  padding: 12px 16px;
+  border: 1px solid #45617f;
+  border-radius: 10px;
+  background: #142238;
+  color: #edf3ff;
+  font: 600 13px system-ui, sans-serif;
+  cursor: pointer;
+`;
 
-$("lesson-card")?.appendChild(inspectButton);
-
-// The original HTML has a lesson card but may not have an ID.
-// Find it by its existing class and add the button there.
-if (!inspectButton.parentElement) {
-  document.querySelector(".lesson-card")?.appendChild(inspectButton);
-}
+document.body.appendChild(inspectButton);
 
 const inspector = document.createElement("div");
 
